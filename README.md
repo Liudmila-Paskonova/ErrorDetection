@@ -60,8 +60,8 @@ or right [here](https://drive.google.com/uc?id=1hBcqrhF3d7LsY36mhSGyY9oY1zEUTHJ6
 │  │  │  ├── FILENAME.EXTENSION 
 │  │  │  └── ...
 │  │  ├── clusters.sav # trained kmeans model
-│  │  ├── solutions_pt.csv # info about pt clusters
-│  │  └── statement.md # problem statement
+│  │  ├── README.md # problem statement
+│  │  └── solutions_pt.csv # info about pt clusters
 │  └── ...
 ├── extractor # tool to extract contexts from files
 │  ├── CMakeLists.txt
