@@ -1,0 +1,13 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+UseTab: Never
+BreakBeforeBraces: Linux
+SortIncludes: Never
+SpaceAfterCStyleCast: true
+IndentCaseLabels: false
+InsertBraces: true
+InsertNewlineAtEOF: true
+IndentGotoLabels: false
+AlwaysBreakAfterReturnType: AllDefinitions
+AllowShortEnumsOnASingleLine: true

@@ -1,0 +1,1 @@
+target_sources(tree PRIVATE main.cpp)
