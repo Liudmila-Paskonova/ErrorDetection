@@ -1,8 +1,3 @@
-// test 3
-// 501 contest
-// id = 34684
-// ERROR: ...
-
 STYPE
 bit_reverse(STYPE value)
 {
@@ -22,22 +17,3 @@ bit_reverse(STYPE value)
     }
     return value;
 }
-
-/*
-CORRECT
-
-STYPE
-bit_reverse(STYPE value)
-{
-    UTYPE abs_val = value;
-    UTYPE flag = -1;
-    UTYPE abs_res = 0;
-    while (flag) {
-        flag >>= 1;
-        abs_res <<= 1;
-        abs_res |= abs_val & 1;
-        abs_val >>= 1;
-    }
-    return (STYPE) abs_res;
-}
-*/
