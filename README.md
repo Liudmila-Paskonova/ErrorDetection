@@ -82,6 +82,8 @@ or right [here](https://drive.google.com/uc?id=1hBcqrhF3d7LsY36mhSGyY9oY1zEUTHJ6
 ├── tree-sitter # submodule
 ├── tree-sitter-c # submodule
 ├── .clang-format
+├── .gitattributes
+├── .gitmodules
 ├── build.sh # script to configure cmake
 ├── CMakeLists.txt
 ├── README.md

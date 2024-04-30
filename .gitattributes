@@ -1,0 +1,4 @@
+model/** linguist-vendored
+tree-sitter/** linguist-vendored
+tree-sitter-c/** linguist-vendored
+examples/** linguist-vendored
