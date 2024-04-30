@@ -39,7 +39,7 @@ const std::string prefix = "<!DOCTYPE html>\n\
 </head>\n\
 <body>\n\
     <h2>Error classes</h2>\n\
-    <p>Choose top_o k classes highlighted.</p>\n\
+    <p>Choose top k classes to highlight.</p>\n\
 ";
 
 const std::string suffix = "    <script>\n\
