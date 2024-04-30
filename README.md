@@ -3,6 +3,7 @@
 1. Same as for [code2vec](https://github.com/tech-srl/code2vec?tab=readme-ov-file#requirements), excluding ```JavaJDK``` 
 2. ```gdown```
 3. Any web browser to display ```html``` 
+4. ```dot``` to draw AST of a program
 
 ## Build
 ``` bash
@@ -51,7 +52,8 @@ or right [here](https://drive.google.com/uc?id=1hBcqrhF3d7LsY36mhSGyY9oY1zEUTHJ6
 │  │  │  ├── FILENAME.contexts.num_examples # by default all C_n^2 contexts
 │  │  │  ├── FILENAME.contexts.vectors # code2vec job
 │  │  │  ├── FILENAME.contexts.vectors.clusters # clustering job
-│  │  │  └── FILENAME.html # result file to visualize
+│  │  │  ├── FILENAME.html # result file to visualize
+│  │  │  └── FILENAME.png # AST
 │  │  └── ...
 │  └── ...
 ├── examples # use to evaluate model

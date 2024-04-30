@@ -82,3 +82,9 @@ ${PYTHON} frontend/error_detection/predict.py --vectors ${TEST_VECTORS} --model 
 ./build/bin/errors ${TEST_FILE} test.txt > ${TEST_FILE_HTML}
 
 rm test.txt
+
+# AST
+# - get png
+./build/bin/tree ${TEST_FILE} test.dot
+dot test.dot -T png -o ${TEST_FILE_FOLDER}/${FILENAME}.png
+rm test.dot
