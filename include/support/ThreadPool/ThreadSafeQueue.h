@@ -1,3 +1,6 @@
+#ifndef SUPPORT_THREADPOOL_THREADSAFEQUEUE_H
+#define SUPPORT_THREADPOOL_THREADSAFEQUEUE_H
+
 #include <mutex>
 #include <queue>
 #include <optional>
@@ -50,3 +53,5 @@ template <typename T> class ThreadSafeQueue
     mutable std::mutex m{};
 };
 }; // namespace threadpool
+
+#endif

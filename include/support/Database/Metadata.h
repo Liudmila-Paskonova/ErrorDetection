@@ -1,3 +1,6 @@
+#ifndef SUPPORT_DATABASE_METADATA_H
+#define SUPPORT_DATABASE_METADATA_H
+
 #include <iostream>
 #include <string_view>
 #include <sqlite3.h>
@@ -48,3 +51,4 @@ class Database
     ~Database();
 };
 }; // namespace db
+#endif

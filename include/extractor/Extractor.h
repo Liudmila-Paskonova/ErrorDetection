@@ -1,3 +1,6 @@
+#ifndef EXTRACTOR_EXTRACTOR_H
+#define EXTRACTOR_EXTRACTOR_H
+
 #include <support/TreeSitter/TreeSitter.h>
 #include <support/Database/Metadata.h>
 #include <support/ThreadPool/ThreadPool.h>
@@ -126,3 +129,5 @@ template <typename Parameters> class Extractor
     }
 };
 } // namespace extractor
+
+#endif

@@ -1,3 +1,6 @@
+#ifndef SUPPORT_ARGPARSER_ARGPARSER_H
+#define SUPPORT_ARGPARSER_ARGPARSER_H
+
 #include <print>
 #include <string>
 #include <set>
@@ -314,3 +317,4 @@ struct ParametersBase {
 };
 
 }; // namespace argparser
+#endif

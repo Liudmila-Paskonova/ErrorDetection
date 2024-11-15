@@ -1,3 +1,6 @@
+#ifndef SUPPORT_TREESITTER_TREESITTER_H
+#define SUPPORT_TREESITTER_TREESITTER_H
+
 #include <cstring>
 #include <stack>
 #include <vector>
@@ -114,7 +117,7 @@ class TreeSitter
     int option;
 
   public:
-    TreeSitter(const std::string &buf, const std::string &lang, int opt);
+    TreeSitter(const std::string &buf, const std::string &lang, int opt = 0);
 
     TreeSitter(const TreeSitter &other);
 
@@ -146,3 +149,4 @@ class TreeSitter
 // >> reverseArr - true if we want 2 get l2r path
 std::vector<std::vector<TreeSitterNode>> root2leafPaths(TreeSitterNode root, bool reverseArr);
 }; // namespace treesitter
+#endif

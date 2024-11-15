@@ -1,3 +1,6 @@
+#ifndef SUPPORT_THREADPOOL_THREADPOOL_H
+#define SUPPORT_THREADPOOL_THREADPOOL_H
+
 #include <support/ThreadPool/ThreadSafeQueue.h>
 #include <vector>
 #include <functional>
@@ -83,3 +86,5 @@ class ThreadPool
     ~ThreadPool();
 };
 }; // namespace threadpool
+
+#endif
