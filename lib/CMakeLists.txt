@@ -1,2 +1,3 @@
 add_subdirectory(support)
 add_subdirectory(extractor)
+add_subdirectory(visualizer)

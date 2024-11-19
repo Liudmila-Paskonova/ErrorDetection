@@ -60,6 +60,8 @@ struct Parameters : public argparser::ParametersBase {
     }
 };
 
+namespace fs = std::filesystem;
+
 int
 main(int argc, char *argv[])
 {

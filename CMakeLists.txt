@@ -7,13 +7,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 find_package(SQLite3 REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 add_subdirectory(lib)
 add_subdirectory(tools)
+#add_subdirectory(src)
 add_library(tree-lib tree-sitter/lib/src/lib.c tree-sitter-c/src/parser.c tree-sitter-cpp/src/parser.c)
 include_directories(
       tree-sitter/lib/src
