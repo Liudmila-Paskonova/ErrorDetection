@@ -239,11 +239,11 @@ treesitter::root2leafPaths(TreeSitterNode root, bool reverseArr = false)
         path = it.second;
 
         // don't add nodes with 1 child
-        if (root.isFork() || root.isNamedTerminal()) {
+        if (root.isFork() || root.isTerminal()) {
             path.push_back(root);
         }
         // found leaf
-        if (root.isNamedTerminal()) {
+        if (root.isTerminal()) {
             if (reverseArr) {
                 std::reverse(path.begin(), path.end());
             }
