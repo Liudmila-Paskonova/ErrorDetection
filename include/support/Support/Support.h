@@ -5,11 +5,9 @@
 #include <filesystem>
 #include <random>
 
-namespace fs = std::filesystem;
-
 namespace support
 {
-std::vector<fs::path> getNRandomFiles(const fs::path &dir, size_t n);
+std::vector<std::filesystem::path> getNRandomFiles(const std::filesystem::path &dir, size_t n);
 
 }; // namespace support
 #endif

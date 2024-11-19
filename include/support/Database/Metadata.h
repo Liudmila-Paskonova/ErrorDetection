@@ -46,6 +46,9 @@ class Database
     std::vector<std::string> getPairSolutions(const std::string &probID, const std::string &userID,
                                               const std::string &status);
 
+    std::vector<std::pair<std::string, std::string>> getPairs(const std::string &probID, size_t limit,
+                                                              const std::string &lang);
+
     std::vector<Package> query(const char *sqlSt);
 
     ~Database();

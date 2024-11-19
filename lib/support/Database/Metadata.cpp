@@ -145,6 +145,42 @@ db::Database::getPairSolutions(const std::string &probID, const std::string &use
     return solutiosIDs;
 }
 
+std::vector<std::pair<std::string, std::string>>
+db::Database::getPairs(const std::string &probID, size_t limit, const std::string &lang)
+{
+    sqlite3_stmt *stmt = nullptr;
+    std::vector<std::pair<std::string, std::string>> solutiosIDs;
+    auto select = std::format(
+        "with ranked_pairs as (select a.submission_id as submission_id1, b.submission_id AS submission_id2, "
+        "row_number() over (partition by a.user_id order by a.submission_id, b.submission_id) as pair_rank from {} a "
+        "join {} b on a.user_id = b.user_id and a.problem_id = \'{}\' and b.problem_id = \'{}\' and a.status = \'OK\' "
+        "and b.status = \'PT\') select submission_id1, submission_id2 from ranked_pairs where pair_rank = 1 limit {};",
+        tableName, tableName, probID, probID, limit);
+
+    if (!(rc = execute(sqlite3_prepare_v2(db, select.c_str(), -1, &stmt, nullptr), ParseError::ErrProcessStmt))) {
+        throw(rc.error() + ":" + select);
+    }
+
+    while (true) {
+        auto p = sqlite3_step(stmt);
+        rc = execute(p, ParseError::ErrExec);
+        if (!rc) {
+            throw(rc.error() + ":" + select);
+        }
+        // check if subID exists
+        rc = execute(p, ParseError::KeyDoesNotExist, SQLITE_DONE);
+        if (!rc) {
+            break;
+        }
+        std::string okSol = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0)) + std::string(".") + lang;
+        std::string ptSol = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1)) + std::string(".") + lang;
+
+        solutiosIDs.push_back({okSol, ptSol});
+    }
+    sqlite3_finalize(stmt);
+    return solutiosIDs;
+}
+
 std::vector<db::Package>
 db::Database::query(const char *sqlSt)
 {
