@@ -1,320 +1,281 @@
 #ifndef SUPPORT_ARGPARSER_ARGPARSER_H
 #define SUPPORT_ARGPARSER_ARGPARSER_H
 
-#include <print>
 #include <string>
 #include <set>
-#include <variant>
-#include <tuple>
-#include <concepts>
 #include <type_traits>
 #include <sstream>
-#include <string_view>
 #include <any>
-#include <vector>
-#include <iostream>
-#include <optional>
-#include <unordered_map>
 #include <format>
-#include <ranges>
+#include <filesystem>
+#include <map>
+#include <memory>
+#include <cstring>
 
 namespace argparser
 {
-/// Type base
-template <size_t idx, typename... Ts> struct Type {
-};
 
-template <size_t idx, typename T, typename... Ts>
-    requires(idx == 0)
-struct Type<idx, T, Ts...> {
-    using type = T;
-};
+/// Abstract class representing one Argument type
+struct Argument {
 
-template <size_t idx, typename T, typename... Ts>
-    requires(idx > 0)
-struct Type<idx, T, Ts...> {
-    using type = Type<idx - 1, Ts...>::type;
-};
+    virtual ~Argument() {};
 
-/// Class storing a particular cmdline parameter as Any type
-class Data
-{
-  public:
-    std::string longArg;
-    std::string shortArg;
-    std::any value;
+    /// A function that updates @param value with a new @param param value.
+    /// @param value - a reference (represented as std::any) to some object.
+    /// @param param - a command line argument to convert
+    virtual void setValue(std::any &value, const std::string &param) = 0;
 
-    Data(const std::string &lArg, const std::string &shArg, const std::any &defVal)
-        : longArg(lArg), shortArg(shArg), value(defVal)
+    /// @brief A function that tries to convert a given command line argument  @param param into a known type @tparam T.
+    /// @tparam T - a type
+    /// @param value - a reference (represented as std::any) to @tparam T object.
+    /// @param param - a command line argument to convert
+    /// @return the expected @tparam T value, @exception if impossible
+    template <typename T>
+    decltype(auto)
+    getValue(std::any &value, const std::string &param)
     {
+        auto concreteValue = std::any_cast<T *>(&value);
+        std::istringstream istream(param);
+        if (!(istream >> **concreteValue)) {
+            throw std::format("Unable to parse string: {}!", param);
+        }
+        return **concreteValue;
     }
-    bool operator==(const std::string &str) const;
 };
 
-/// Class used to store arguments in the arguments'list
-template <typename T>
-    requires(std::is_arithmetic<T>() == true || std::same_as<T, std::string>)
-class Argument
+/// Class to represent Directory argument
+/// @tparam T - a concrete type (only std::string is allowed)
+template <typename T = std::string>
+    requires(std::same_as<T, std::string>)
+class DirectoryArgument : public Argument
 {
   public:
-    std::string longArg;
-    std::string shortArg;
     T defaultValue;
-    // possible values if provided
+
+    DirectoryArgument(const T &defVal) : defaultValue(defVal) { checkValue(defVal); }
+
+    /// @brief Check if a provided @param value is a directory
+    /// @param value - a value to check
+    void
+    checkValue(const T &value)
+    {
+        if (!std::filesystem::is_directory(value)) {
+            throw std::format("{} is not a directory!", value);
+        }
+    }
+
+    void
+    setValue(std::any &value, const std::string &param) override
+    {
+        auto concreteValue = getValue<T>(value, param);
+        checkValue(concreteValue);
+    }
+};
+
+/// Class to represent File argument
+/// @tparam T - a concrete type (only std::string is allowed)
+template <typename T = std::string>
+    requires(std::same_as<T, std::string>)
+class FileArgument : public Argument
+{
+
+  public:
+    T defaultValue;
+
+    FileArgument(const T &defVal) : defaultValue(defVal) { checkValue(defVal); }
+
+    /// @brief Check if a provided @param value is a file
+    /// @param value - a value to check
+    void
+    checkValue(const T &value)
+    {
+        if (!std::filesystem::is_regular_file(value)) {
+            throw std::format("{} is not a file!", value);
+        }
+    }
+
+    void
+    setValue(std::any &value, const std::string &param) override
+    {
+        auto concreteValue = getValue<T>(value, param);
+        checkValue(concreteValue);
+    }
+};
+
+/// Class to represent arguments that can be restricted with some range (number of threads, length etc.)
+/// @tparam T - a concrete type (only unsigned integral types are allowed)
+template <typename T = size_t>
+    requires(std::unsigned_integral<T>)
+class NaturalRangeArgument : public Argument
+{
+    T minValue;
+    T maxValue;
+
+  public:
+    T defaultValue;
+
+    NaturalRangeArgument(T defVal = 0, const std::pair<T, T> &rangeBorders = {0, std::numeric_limits<T>::max()})
+        : defaultValue(defVal), minValue(rangeBorders.first), maxValue(rangeBorders.second)
+    {
+        checkValue(defVal);
+    }
+
+    /// @brief Check if a provided @param value lies in the predefined range
+    /// @param value - a value to check
+    void
+    checkValue(const T &value)
+    {
+        if (value < minValue || value > maxValue) {
+            throw std::format("{} is out of the range [{}, {}]!", value, minValue, maxValue);
+        }
+    }
+
+    void
+    setValue(std::any &value, const std::string &param) override
+    {
+        auto concreteValue = getValue<T>(value, param);
+        checkValue(concreteValue);
+    }
+};
+
+/// Class to represent arguments from the predefined container (language, options etc.)
+/// @tparam T - a concrete type (only arithmetic types and std::string are allowed)
+template <typename T = bool>
+    requires(std::is_arithmetic<T>() == true || std::same_as<T, std::string>)
+class CostrainedArgument : public Argument
+{
     std::set<T> container;
 
-    Argument(const char *lArg, const char *shArg, const T &defVal, const std::set<T> &values = {})
-        : longArg(lArg), shortArg(shArg), defaultValue(defVal), container(values)
-    {
-        if (!longArg.starts_with("--")) {
-            throw std::format("Long arguments should start with -- : {}", longArg);
-        }
-        if (!shortArg.starts_with("-")) {
-            throw std::format("Short arguments should start with - : {}", shortArg);
-        }
-        if (longArg.empty() || shortArg.empty()) {
-            throw std::format("{} argument is empty", longArg.empty() ? "Long" : "Short");
-        }
-    }
-
-    std::optional<std::any>
-    find(const std::string &name, const std::string &param = {}) const
-    {
-        // if there's no such key, pack is empty
-        if (longArg != name && shortArg != name) {
-            return {};
-        }
-        // if no parameter provided and container is empty, value is boolean
-        if (param.empty() && container.empty() && std::same_as<T, bool>) {
-            return true;
-        }
-        // if no parameter provided but container is not empty, then return err
-        if (param.empty() && !container.empty()) {
-            return {};
-        }
-
-        std::istringstream istream(param);
-        T newValue;
-        istream >> newValue;
-
-        // if there're no restrictions on parameter's value, return this value
-        if (container.empty()) {
-            return newValue;
-        }
-
-        for (const auto &elem : container) {
-            if (elem == newValue) {
-                return newValue;
-            }
-        }
-
-        // if param value is impossible
-        return {};
-    }
-};
-
-template <typename C> struct is_instantiation_of_argument : std::false_type {
-};
-
-template <typename T> struct is_instantiation_of_argument<Argument<T>> : std::true_type {
-};
-
-template <typename T>
-concept IsArgument = is_instantiation_of_argument<T>::value;
-
-/// Class that stores one particular value in a tuple
-template <size_t idx, typename D>
-    requires IsArgument<D>
-class TupleNode
-{
-    D data;
-
   public:
-    TupleNode(D const &data_) : data(data_) {}
-    TupleNode(D &&data_) : data(std::move(data_)) {}
+    T defaultValue;
 
-    // get a reference to the stored data
-    constexpr D &
-    get()
+    CostrainedArgument(T defVal = false, const std::set<T> &cont = {false, true})
+        : defaultValue(defVal), container(cont)
     {
-        return data;
-    }
-};
-
-/// Base for the recursion
-template <size_t idx, typename... Ts> struct TupleEntity {
-    // the end of the tuple is reached => return empty value
-    std::optional<std::any>
-    find(const std::string &name, const std::string &param = {})
-    {
-        return {};
+        checkValue(defVal);
     }
 
-    // all nodes' data has already been collected
+    /// @brief Check if a provided @param value exists in the predefined container
+    /// @param value - a value to check
     void
-    elem(std::vector<Data> &res)
+    checkValue(const T &value)
     {
-        return;
-    }
-};
-
-/// Partial specialization should inherit from the corresponding TupleNode && next TupleEntity
-template <size_t idx, typename T, typename... Ts>
-class TupleEntity<idx, T, Ts...> : public TupleNode<idx, typename std::remove_reference<T>::type>,
-                                   public TupleEntity<idx + 1, Ts...>
-{
-    using NodeType = typename std::remove_reference<T>::type;
-
-  public:
-    template <typename X, typename... Xs>
-    TupleEntity(X &&arg, Xs &&...args)
-        : TupleNode<idx, NodeType>(std::forward<X>(arg)), TupleEntity<idx + 1, Ts...>(std::forward<Xs>(args)...)
-    {
-    }
-    // Check if the current node contains the value being searched
-    std::optional<std::any>
-    find(const std::string &name, const std::string &param = {})
-    {
-        auto newVal = static_cast<TupleNode<idx, NodeType> &>(*this).get().find(name, param);
-        if (newVal) {
-            return newVal;
-        } else {
-            return static_cast<TupleEntity<idx + 1, Ts...> &>(*this).find(name, param);
-        }
-    }
-
-    // collect a Data object
-    constexpr void
-    elem(std::vector<Data> &res)
-    {
-        auto node = static_cast<TupleNode<idx, typename std::remove_reference<T>::type> &>(*this).get();
-
-        res.push_back({node.longArg, node.shortArg, node.defaultValue});
-
-        static_cast<TupleEntity<idx + 1, Ts...> &>(*this).elem(res);
-    }
-};
-
-/// Main tuple object
-template <typename... Ts> class ArgTuple : public TupleEntity<0, Ts...>
-{
-  public:
-    template <typename... Xs> ArgTuple(Xs &&...args) : TupleEntity<0, Ts...>(std::forward<Xs>(args)...) {}
-
-    static constexpr size_t
-    size()
-    {
-        return sizeof...(Ts);
-    }
-
-    // Get the value for the given index
-    template <size_t idx>
-    auto &
-    getVal()
-    {
-        return static_cast<TupleNode<idx, typename Type<idx, Ts...>::type> &>(*this).get();
-    }
-
-    // Given an argument's name and, probably, a parameter, return a value
-    std::optional<std::any>
-    find(const std::string &name, const std::string &param = {})
-    {
-        return static_cast<TupleEntity<0, Ts...> &>(*this).find(name, param);
-    }
-
-    // Collect all the tuple into a vector
-    std::vector<Data>
-    getTuple()
-    {
-        std::vector<Data> res;
-        // Print the tuple and go to next element
-        static_cast<TupleEntity<0, Ts...> &>(*this).elem(res);
-        return res;
-    }
-};
-
-/// explicit template deduction (CTAD)
-template <typename... Xs> ArgTuple(Xs... args) -> ArgTuple<Xs...>;
-
-template <typename C> struct is_instantiation_of_tuple : std::false_type {
-};
-
-template <typename... Ts> struct is_instantiation_of_tuple<ArgTuple<Ts...>> : std::true_type {
-};
-
-template <typename... Ts>
-concept IsTuple = is_instantiation_of_tuple<Ts...>::value;
-
-/// Main argument parser class
-/// P - parameters
-/// C - tuple
-template <typename P, typename C>
-    requires(IsTuple<C>)
-class ArgParser
-{
-    C argsVocab;
-    std::vector<Data> values;
-
-  public:
-    ArgParser(const C &setArgs) : argsVocab(setArgs) { values = argsVocab.getTuple(); }
-
-    P
-    parse(int argc, char *argv[])
-    {
-
-        for (int argIndex = 1; argIndex < argc; ++argIndex) {
-            std::string arg{argv[argIndex]};
-            std::string param;
-            if (arg.starts_with("-")) {
-                ++argIndex;
-                std::optional<std::any> ind;
-                if (argIndex == argc || std::string(argv[argIndex]).starts_with("-")) {
-                    ind = argsVocab.find(arg);
-                    --argIndex;
+        if (container.find(value) == container.end()) {
+            std::stringstream allValues;
+            bool flag = true;
+            for (auto &c : container) {
+                if (flag) {
+                    allValues << c;
+                    flag = false;
                 } else {
-                    param = argv[argIndex];
-                    ind = argsVocab.find(arg, param);
+                    allValues << ", " << c;
                 }
-
-                if (!ind.has_value()) {
-                    throw std::format("Wrong key or parameters: {} {}", arg, param);
-                } else {
-                    auto it = std::find(values.begin(), values.end(), arg);
-                    it->value = ind.value();
-                }
-            } else {
-                throw std::format("Argument {} is not a key", arg);
             }
+
+            throw std::format("There's no {} among allowed values: {{{}}}!", value, allValues.rdbuf()->str());
         }
-        return P(values);
+    }
+
+    void
+    setValue(std::any &value, const std::string &param) override
+    {
+        auto concreteValue = getValue<T>(value, param);
+        checkValue(concreteValue);
     }
 };
 
-/// Just a helper function for auto template deduction
-template <typename P, typename C>
-ArgParser<P, C>
-make_parser(const C &args)
+/// A compile-time wrapper a short key, e.g. a key, beginning with one '-'
+/// @tparam Len - length of the string
+template <std::size_t Len> struct ShortArg {
+    char argstr[Len]{};
+
+    consteval ShortArg(const char (&str)[Len])
+    {
+        if (!str) {
+            throw "Empty argument!";
+        }
+
+        if (strlen(str) <= 1) {
+            throw "Short argument is too short";
+        }
+
+        if (str[0] != '-' || str[1] == '-') {
+            throw "Short argument should contain \'-\'!";
+        }
+
+        std::copy_n(str, Len, argstr);
+    }
+};
+
+/// A compile-time wrapper a long key, e.g. a key, beginning with '--'
+/// @tparam Len - length of the string
+template <std::size_t Len> struct LongArg {
+    char argstr[Len]{};
+
+    consteval LongArg(const char (&str)[Len])
+    {
+        if (!str) {
+            throw "Empty argument!";
+        }
+
+        if (strlen(str) <= 2) {
+            throw "Long argument is too short";
+        }
+
+        if (str[0] != '-' || str[1] != '-') {
+            throw "Long argument should contain \'--\'!";
+        }
+
+        std::copy_n(str, Len, argstr);
+    }
+};
+
+/// Custom key for maps
+class KeyParam
 {
-    return ArgParser<P, C>(args);
-}
+  public:
+    std::string sharg;
+    std::string larg;
 
-/// Class from each any parameters struct should be inherited from
-struct ParametersBase {
+    bool operator<(const KeyParam &k2) const;
+};
 
-    ParametersBase(std::vector<argparser::Data> &m) : paramPack(m) {}
+/// Main class
+class Arguments
+{
+    // map storing pointers to Arguments
+    std::map<KeyParam, std::unique_ptr<Argument>> parameters;
+    // map storing references to Parameters' values (which are in turn represented as std::any)
+    std::map<KeyParam, std::any> values;
 
   protected:
-    template <typename T>
-        requires(std::is_arithmetic<T>() == true || std::same_as<T, std::string>)
+    /// A function to register a new argument rule
+    /// @tparam T - type of a parameter object
+    /// @tparam sharg - short argument
+    /// @tparam larg - long argument
+    /// @param value - an object of the type @tparam T
+    /// @param obj - concrete Argument type (e.g. DirectoryArgument, NaturalRangeArgument etc.)
+    template <ShortArg sharg, LongArg larg, typename T, template <typename> class Object>
+        requires((std::is_arithmetic<T>() == true || std::same_as<T, std::string>) &&
+                 (std::same_as<Object<T>, FileArgument<T>> || std::same_as<Object<T>, DirectoryArgument<T>> ||
+                  std::same_as<Object<T>, NaturalRangeArgument<T>> || std::same_as<Object<T>, CostrainedArgument<T>>) )
     void
-    getParam(const std::string &str, T &value)
+    addParam(T &value, const Object<T> &obj)
     {
-
-        value = std::any_cast<T>(std::find(paramPack.begin(), paramPack.end(), str)->value);
+        value = obj.defaultValue;
+        parameters[{sharg.argstr, larg.argstr}] = std::make_unique<Object<T>>(obj);
+        values[{sharg.argstr, larg.argstr}] = &value;
     }
 
-    std::vector<argparser::Data> paramPack;
+  public:
+    /// Main function to parse command line arguments
+    /// @param argc
+    /// @param argv
+    void parse(int argc, char *argv[]);
 };
 
+template <bool> CostrainedArgument() -> CostrainedArgument<bool>;
+
 }; // namespace argparser
+
 #endif

@@ -11,6 +11,7 @@ Supposing the following structure of a raw datase,
   |    |---- sub1_name
   |    |---- sub2_name
   |      ...
+
 this tool will create a new dataset:
   |- train_split_directory
   |----|- train
@@ -19,6 +20,7 @@ this tool will create a new dataset:
   |----|- val
   |    |---- sub1_name
   |    |---- sub2_name
+  |      ...
 
   --max_path_length         |-maxlen    |=
   --max_path_width          |-maxwidth  |=
@@ -36,19 +38,7 @@ this tool will create a new dataset:
 #include <extractor/Extractor.h>
 #include <support/ArgParser/ArgParser.h>
 
-argparser::ArgTuple cmdLineArgs = {
-    argparser::Argument<size_t>("--max_path_length", "-maxlen", UINT32_MAX),
-    argparser::Argument<size_t>("--max_path_width", "-maxwidth", UINT32_MAX),
-    argparser::Argument<size_t>("--num_threads", "-threads", 1),
-    argparser::Argument<size_t>("--batch_size", "-batch", 1),
-    argparser::Argument<bool>("--export_code_vectors", "-vectors", false),
-    argparser::Argument<std::string>("--dataset_language", "-lang", "cpp", {"c", "cpp"}),
-    argparser::Argument<std::string>("--path_contexts_encoding", "-contexts", "tpt", {"tpt", "rt"}),
-    argparser::Argument<size_t>("--tokens_encoding", "-tokens", 0, {0, 1}),
-    argparser::Argument<std::string>("--dataset_directory", "-dir", "smth"),
-    argparser::Argument<std::string>("--metadata_database", "-metadata", "smth")};
-
-struct Parameters : public argparser::ParametersBase {
+struct Parameters : public argparser::Arguments {
     size_t maxLen;
     size_t maxWidth;
     size_t numThreads;
@@ -60,18 +50,20 @@ struct Parameters : public argparser::ParametersBase {
     std::string dir;
     std::string metadata;
 
-    Parameters(std::vector<argparser::Data> &m) : ParametersBase(m)
+    Parameters()
     {
-        getParam("-maxlen", maxLen);
-        getParam("-maxwidth", maxWidth);
-        getParam("-threads", numThreads);
-        getParam("-batch", batch);
-        getParam("-vectors", exportVectors);
-        getParam("-lang", lang);
-        getParam("-contexts", contexts);
-        getParam("-tokens", tokens);
-        getParam("-dir", dir);
-        getParam("-metadata", metadata);
+        using namespace argparser;
+        addParam<"-maxlen", "--max_path_length">(maxLen, NaturalRangeArgument<>(1, {1, 20}));
+        addParam<"-maxwidth", "--max_path_width">(maxWidth, NaturalRangeArgument<>(1, {1, 20}));
+        addParam<"-threads", "--num_threads">(numThreads, NaturalRangeArgument<>(1, {1, 16}));
+        addParam<"-batch", "--batch_size">(batch, NaturalRangeArgument<>(1, {1, 20}));
+        addParam<"-vectors", "--export_code_vectors">(exportVectors, CostrainedArgument());
+        addParam<"-lang", "--dataset_language">(lang, CostrainedArgument<std::string>("cpp", {"c", "cpp"}));
+        addParam<"-contexts", "--path_contexts_encoding">(contexts,
+                                                          CostrainedArgument<std::string>("tpt", {"tpt", "rt"}));
+        addParam<"-tokens", "--tokens_encoding">(tokens, CostrainedArgument<size_t>(0, {0, 1}));
+        addParam<"-dir", "--dataset_directory">(dir, DirectoryArgument<std::string>("/home"));
+        addParam<"-metadata", "--metadata_database">(metadata, DirectoryArgument<std::string>("/home"));
     }
 };
 
@@ -79,8 +71,8 @@ int
 main(int argc, char *argv[])
 {
     try {
-        auto parser = argparser::make_parser<Parameters>(cmdLineArgs);
-        auto params = parser.parse(argc, argv);
+        Parameters params;
+        params.parse(argc, argv);
         extractor::Extractor e(params);
         e.run(params.dir, params.metadata);
 

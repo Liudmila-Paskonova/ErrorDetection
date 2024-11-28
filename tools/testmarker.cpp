@@ -13,36 +13,31 @@
 #include <algorithm>
 #include <set>
 
-argparser::ArgTuple cmdLineArgs = {
-    argparser::Argument<std::string>("--problem_name", "-prob", "p02743"),
-    argparser::Argument<size_t>("--pairs_count", "-npairs", 10),
-    argparser::Argument<std::string>("--raw_dataset", "-dir",
-                                     "/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/C++"),
-    argparser::Argument<std::string>("--path_to_metadata", "-metadata",
-                                     "/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/C++/metadata_cpp.db"),
-    argparser::Argument<std::string>("--problem_statements", "-stmts",
-                                     "/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/texts"),
-    argparser::Argument<std::string>("--dataset_language", "-lang", "cpp", {"c", "cpp"}),
-    argparser::Argument<std::string>("--output_file", "-out", "/home/liudmila/cmc/Coursework_final/src/output.txt")};
-
-struct Parameters : public argparser::ParametersBase {
+struct Parameters : public argparser::Arguments {
     std::string prob;
     size_t npairs;
     std::string dir;
     std::string metadata;
     std::string lang;
-    std::string out;
+    std::string outdir;
     std::string stmts;
 
-    Parameters(std::vector<argparser::Data> &m) : ParametersBase(m)
+    Parameters()
     {
-        getParam("-prob", prob);
-        getParam("-npairs", npairs);
-        getParam("-dir", dir);
-        getParam("-stmts", stmts);
-        getParam("-metadata", metadata);
-        getParam("-lang", lang);
-        getParam("-out", out);
+        using namespace argparser;
+        addParam<"-prob", "--problem_name">(prob, CostrainedArgument<std::string>("p02743", {"p02743"}));
+        addParam<"-npairs", "--pairs_count">(npairs, NaturalRangeArgument<>(1, {1, 4000}));
+        addParam<"-dir", "--raw_dataset">(
+            dir, DirectoryArgument<std::string>("/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/C++"));
+        addParam<"-stmts", "--problem_statements">(
+            stmts, DirectoryArgument<std::string>("/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/texts"));
+        addParam<"-metadata", "--path_to_metadata">(
+            metadata, FileArgument<std::string>(
+                          "/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/C++/metadata_cpp.db"));
+        addParam<"-lang", "--dataset_language">(lang, CostrainedArgument<std::string>("cpp", {"c", "cpp"}));
+        addParam<"-outdir", "--output_directory">(
+            outdir,
+            DirectoryArgument<std::string>("/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/labels2"));
     }
 };
 
@@ -53,8 +48,8 @@ main(int argc, char *argv[])
 {
 
     try {
-        auto parser = argparser::make_parser<Parameters>(cmdLineArgs);
-        auto params = parser.parse(argc, argv);
+        Parameters params;
+        params.parse(argc, argv);
 
         db::Database db(params.metadata, "metadata_cpp");
         auto subPairs = db.getPairs(params.prob, params.npairs, params.lang);
@@ -64,6 +59,8 @@ main(int argc, char *argv[])
         fs::path stmtDir = params.stmts;
         fs::path stmt = stmtDir / (params.prob + ".txt");
         fs::path probDir = dataDir / params.prob;
+        fs::path outDir = params.outdir;
+        fs::path outFile = outDir / (params.prob + ".txt");
 
         std::ifstream stmtFile(stmt);
         std::stringstream stmtBuf;
@@ -71,38 +68,30 @@ main(int argc, char *argv[])
         stmtFile.close();
 
         for (const auto &[ok, pt] : subPairs) {
-            std::ifstream okFile(probDir / ok);
-            std::stringstream bufferOk;
-            bufferOk << okFile.rdbuf();
-            okFile.close();
-            std::ifstream ptFile(probDir / pt);
-            std::stringstream bufferPt;
-            bufferPt << ptFile.rdbuf();
-            ptFile.close();
+            std::string okFileStr = (probDir / ok).string();
+            std::string ptFileStr = (probDir / pt).string();
 
-            std::string okBody = bufferOk.str(), ptBody = bufferPt.str();
+            treesitter::TreeSitter okTree(okFileStr, params.lang), ptTree(ptFileStr, params.lang);
 
-            treesitter::TreeSitter okTree(okBody, params.lang), ptTree(ptBody, params.lang);
-
-            auto ptRt = treesitter::root2leafPaths(ptTree.getRoot(), false);
+            auto ptRt = root2leafPaths(ptTree.getRoot());
             std::unordered_map<std::string, std::vector<treesitter::TreeSitterNode>> nodes;
             for (auto &vec : ptRt) {
                 std::string newId;
                 for (auto &v : vec) {
                     newId += std::format("{:0>3}", v.getID());
                 }
-                newId += vec.back().getValue(ptBody);
+                newId += vec.back().getValue(ptTree.getContext());
                 nodes[newId].push_back(vec.back());
             }
 
-            auto okRt = treesitter::root2leafPaths(okTree.getRoot(), false);
+            auto okRt = root2leafPaths(okTree.getRoot());
 
             for (auto &vec : okRt) {
                 std::string newId;
                 for (auto &v : vec) {
                     newId += std::format("{:0>3}", v.getID());
                 }
-                newId += vec.back().getValue(okBody);
+                newId += vec.back().getValue(okTree.getContext());
                 auto it = nodes.find(newId);
                 if (it != nodes.end()) {
                     nodes.erase(it);
@@ -120,7 +109,7 @@ main(int argc, char *argv[])
         }
         QApplication app(argc, argv);
 
-        marker::Marker window(stmtBuf.str(), probDir.string(), subPairs, errorLines, params.out);
+        marker::Marker window(stmtBuf.str(), probDir.string(), subPairs, errorLines, outFile.string());
 
         window.show();
 

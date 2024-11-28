@@ -35,28 +35,25 @@ this tool will create a new dataset:
 #include <vector>
 #include <numeric>
 #include <set>
+#include <print>
 #include <format>
 
-argparser::ArgTuple cmdLineArgs = {argparser::Argument<size_t>("--number_of_problems", "-nprobs", 1),
-                                   argparser::Argument<size_t>("--number_of_submissions", "-nsubs", 1),
-                                   argparser::Argument<size_t>("--split_train_val", "-split", 75),
-                                   argparser::Argument<std::string>("--dataset_directory", "-datadir", "smth"),
-                                   argparser::Argument<std::string>("--train_split_directory", "-outdir", "smth")};
-
-struct Parameters : public argparser::ParametersBase {
+struct Parameters : public argparser::Arguments {
     size_t numProbs;
     size_t numSubs;
     size_t split;
     std::string dataDir;
     std::string outDir;
 
-    Parameters(std::vector<argparser::Data> &m) : ParametersBase(m)
+    Parameters()
     {
-        getParam("-nprobs", numProbs);
-        getParam("-nsubs", numSubs);
-        getParam("-split", split);
-        getParam("-datadir", dataDir);
-        getParam("-outdir", outDir);
+        using namespace argparser;
+
+        addParam<"-nprobs", "--number_of_problems">(numProbs, NaturalRangeArgument<>(1, {0, 4000}));
+        addParam<"-nsubs", "--number_of_submissions">(numSubs, NaturalRangeArgument<>(1, {0, 4000}));
+        addParam<"-split", "--split_train_val">(split, NaturalRangeArgument<>(75, {0, 100}));
+        addParam<"-datadir", "--dataset_directory">(dataDir, DirectoryArgument<std::string>("/home"));
+        addParam<"-outdir", "--train_split_directory">(outDir, DirectoryArgument<std::string>("/home"));
     }
 };
 
@@ -66,8 +63,8 @@ int
 main(int argc, char *argv[])
 {
     try {
-        auto parser = argparser::make_parser<Parameters>(cmdLineArgs);
-        auto p = parser.parse(argc, argv);
+        Parameters p;
+        p.parse(argc, argv);
 
         if (!fs::exists(p.dataDir)) {
             throw "No such data dir!";
