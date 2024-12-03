@@ -1,5 +1,7 @@
 #include <support/TreeSitter/TreeSitter.h>
 #include <stdint.h>
+#include <fstream>
+#include <sstream>
 
 treesitter::TreeSitterNode &
 treesitter::TreeSitterNode::operator=(const TreeSitterNode &other)
@@ -115,7 +117,12 @@ treesitter::TreeSitterNode::isFork() const
 
 treesitter::TreeSitter::TreeSitter(const std::string &buf, const std::string &lang, int opt)
 {
-    src = buf;
+    std::ifstream file(buf);
+    std::stringstream ss;
+    ss << file.rdbuf();
+    file.close();
+
+    src = ss.str();
     option = opt;
     parser = ts_parser_new();
     const TSLanguage *lang_parser;
@@ -125,7 +132,7 @@ treesitter::TreeSitter::TreeSitter(const std::string &buf, const std::string &la
         lang_parser = tree_sitter_cpp();
     };
     ts_parser_set_language(parser, lang_parser);
-    tree = ts_parser_parse_string(parser, NULL, buf.c_str(), strlen(buf.c_str()));
+    tree = ts_parser_parse_string(parser, NULL, src.c_str(), strlen(src.c_str()));
 }
 
 treesitter::TreeSitter::TreeSitter(const TreeSitter &other)
@@ -148,79 +155,20 @@ treesitter::TreeSitter::getGraph(const char *file)
     ts_tree_print_dot_graph(tree, imgFd);
 }
 
-std::string
-treesitter::TreeSitter::getToken(const TreeSitterNode &token)
-{
-    std::string ans;
-    int p = 1;
-    std::string t = token.getType();
-    if (tokenOptions.find(t) != tokenOptions.end()) {
-        p = tokenOptions[t][option];
-    }
-    switch (p) {
-    case 0:
-        ans = token.getValue(src);
-        break;
-    case 1:
-        ans = t;
-        break;
-    case 2:
-        ans = std::to_string(std::hash<std::string>{}(token.getValue(src)));
-    default:
-        break;
-    }
-    return ans;
-}
-
-std::string
-treesitter::TreeSitter::getPath(const std::string &s)
-{
-    std::string ans;
-    switch (option) {
-    case 0:
-        ans = std::to_string(std::hash<std::string>{}(s));
-        break;
-    case 1:
-        ans = s;
-        break;
-    default:
-
-        break;
-    }
-    return ans;
-}
-
-std::string
-treesitter::TreeSitter::getFormat(const TreeSitterNode &token1, const std::string &pathUp, const std::string &pathDown,
-                                  const TreeSitterNode &token2)
-{
-    std::string t1, p, t2;
-    t1 = getToken(token1);
-    t2 = getToken(token2);
-    p = pathUp + pathDown;
-    p = getPath(p);
-    return t1 + "," + p + "," + t2;
-}
-
-uint16_t
-treesitter::TreeSitter::maybeChangeID(const TreeSitterNode &node)
-{
-    uint16_t ans = node.getID();
-    std::string t = node.getType();
-    if (expressions.find(t) != expressions.end()) {
-        ans = node.getChild(expressions[t]).getID();
-    }
-    return ans;
-}
-
 treesitter::TreeSitter::~TreeSitter()
 {
     ts_parser_delete(parser);
     ts_tree_delete(tree);
 }
 
+std::string
+treesitter::TreeSitter::getContext() const
+{
+    return src;
+}
+
 std::vector<std::vector<treesitter::TreeSitterNode>>
-treesitter::root2leafPaths(TreeSitterNode root, bool reverseArr = false)
+treesitter::root2leafPaths(TreeSitterNode root, bool reverseArr)
 {
     // vector of all possible l2l paths
     std::vector<std::vector<TreeSitterNode>> res;
@@ -255,4 +203,152 @@ treesitter::root2leafPaths(TreeSitterNode root, bool reverseArr = false)
         }
     }
     return res;
+}
+
+std::vector<std::vector<treesitter::TSNode>>
+treesitter::Traversal::getAllNode2TerminalPaths(const TSNode &node, bool reverseArr)
+{
+    // vector of all possible r2l paths
+    std::vector<std::vector<TSNode>> res;
+
+    // a root2terminal path
+    std::vector<TSNode> stack;
+
+    TSTreeCursor cursor = ts_tree_cursor_new(node);
+    TSNode curNode = ts_tree_cursor_current_node(&cursor);
+    stack.push_back(curNode);
+
+    int isNew = true;
+
+    while (1) {
+        if (isNew && ts_tree_cursor_goto_first_child(&cursor)) {
+            // to child (down)
+            curNode = ts_tree_cursor_current_node(&cursor);
+            stack.push_back(curNode);
+        } else {
+            // terminal || !isNew
+            if (isNew) {
+                // terminal -> add a new root-terminal path
+                auto vec = stack;
+                if (reverseArr) {
+                    std::reverse(vec.begin(), vec.end());
+                }
+                res.push_back(vec);
+            }
+            if (ts_tree_cursor_goto_next_sibling(&cursor)) {
+                // to sibling terminal (up-down)
+                stack.pop_back();
+                isNew = true;
+                curNode = ts_tree_cursor_current_node(&cursor);
+                stack.push_back(curNode);
+            } else if (ts_tree_cursor_goto_parent(&cursor)) {
+                // to parent (up)
+                isNew = false;
+                stack.pop_back();
+            } else {
+                stack.clear();
+                break;
+            }
+        }
+    }
+
+    ts_tree_cursor_delete(&cursor);
+    return res;
+}
+
+std::vector<std::vector<treesitter::TSNode>>
+treesitter::Traversal::root2terminal(const TSNode &root)
+{
+    auto vec = getAllNode2TerminalPaths(root);
+    return vec;
+}
+
+std::vector<std::vector<treesitter::TSNode>>
+treesitter::Traversal::terminal2terminal(const TSNode &root)
+{
+    auto vec = getAllNode2TerminalPaths(root);
+    /// @todo
+    return vec;
+}
+
+treesitter::TokenizedToken
+treesitter::Tokenizer::defaultTokenization(const TSNode &node, const std::string &src)
+{
+    std::string id = std::format("{:0>3}", ts_node_grammar_symbol(node));
+    std::string name;
+
+    if (!ts_node_is_null(node) && ts_node_child_count(node) == 0) {
+        // terminal
+        if (ts_node_is_named(node) && std::string_view(ts_node_grammar_type(node)) != "identifier") {
+            // named terminal => exists in the grammar
+            name = src.substr(ts_node_start_byte(node), ts_node_end_byte(node) - ts_node_start_byte(node));
+
+        } else {
+            // identifiers + unnamed
+            name = ts_node_grammar_type(node);
+        }
+    } else {
+        // non-terminal
+        name = {};
+    }
+
+    return TokenizedToken(id, name);
+}
+
+std::string
+treesitter::Split::toBranch(const std::vector<TokenizedToken> &pathContext,
+                            std::unordered_map<size_t, std::string> &vocab)
+{
+    std::string res;
+    for (const auto &token : pathContext) {
+        res += token.id;
+    }
+    size_t hashed = std::hash<std::string>{}(pathContext.back().name);
+    res += "_" + std::to_string(hashed);
+    vocab[hashed] = pathContext.back().name;
+
+    return res;
+}
+
+treesitter::Tree::Tree(const std::string &fileName, const std::string &lang, const std::string &traversalParam,
+                       const std::string &tokenizationParam, const std::string &splitParam)
+    : traversal(traversalPolicy[traversalParam]), tokenizer(tokenizationRules[tokenizationParam]),
+      split(splitStrategy[splitParam])
+{
+    std::ifstream file(fileName);
+    std::stringstream ss;
+    ss << file.rdbuf();
+    file.close();
+
+    src = ss.str();
+    parser = ts_parser_new();
+
+    ts_parser_set_language(parser, languages[lang]());
+    tree = ts_parser_parse_string(parser, NULL, src.c_str(), strlen(src.c_str()));
+    root = ts_tree_root_node(tree);
+}
+
+std::vector<std::string>
+treesitter::Tree::process()
+{
+    auto pathVectors = traversal(root);
+    std::vector<std::vector<TokenizedToken>> tokens;
+    for (const auto &path : pathVectors) {
+        std::vector<TokenizedToken> temp;
+        for (auto &node : path) {
+            temp.push_back(tokenizer(node, src));
+        }
+        tokens.push_back(temp);
+    }
+    std::vector<std::string> res;
+    for (auto &token : tokens) {
+        res.push_back(split(token, vocab));
+    }
+    return res;
+}
+
+treesitter::Tree::~Tree()
+{
+    ts_parser_delete(parser);
+    ts_tree_delete(tree);
 }

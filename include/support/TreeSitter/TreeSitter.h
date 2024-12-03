@@ -10,6 +10,12 @@
 #include <fcntl.h>
 #include <cstdint>
 #include <map>
+#include <functional>
+#include <unordered_map>
+#include <format>
+#include <cstdint>
+#include <fstream>
+#include <sstream>
 
 namespace treesitter
 {
@@ -19,6 +25,14 @@ extern "C" {
 
 extern "C" const TSLanguage *tree_sitter_c();
 extern "C" const TSLanguage *tree_sitter_cpp();
+
+/// Struct that represents one node
+struct TokenizedToken {
+    /// grammar identifier of a node
+    std::string id;
+    /// value or grammar type
+    std::string name;
+};
 
 class TreeSitterNode
 {
@@ -62,15 +76,6 @@ class TreeSitterNode
 
     // get the particular child node
     TreeSitterNode getChild(uint32_t i) const;
-    /*
-        // get the parent node
-        TreeSitterNode
-        getParent() const
-        {
-            TSNode a;
-            return TreeSitterNode(ts_node_parent(node), src);
-        }
-        */
 
     // check if internal node is leaf
     bool isTerminal() const;
@@ -82,34 +87,116 @@ class TreeSitterNode
     bool isFork() const;
 };
 
+/// Class that stores traversal policies
+class Traversal
+{
+    /// A function to get all possible node-terminal (or terminal-node) sequences for a node
+    /// @param node - a given node
+    /// @param reverseArr - reverse the resulting vector if needed
+    /// @return vector of nodes' sequences
+    static std::vector<std::vector<TSNode>> getAllNode2TerminalPaths(const TSNode &node, bool reverseArr = false);
+
+  public:
+    /// A function to get all possible root-terminal sequences
+    /// @param root - the root of a tree
+    /// @return vector of sequences of nodes
+    static std::vector<std::vector<TSNode>> root2terminal(const TSNode &root);
+
+    /// A function to get all possible terminal-terminal sequences
+    /// @param root - the root of a tree
+    /// @return vector of sequences of nodes
+    static std::vector<std::vector<TSNode>> terminal2terminal(const TSNode &root);
+};
+
+/// Class that stores tokenization methods
+class Tokenizer
+{
+  public:
+    /// A function that collects information (id, name) about a particular node
+    /// @param node - a given node
+    /// @param src - file' context (required to extract exact values)
+    /// @return TokenizedToken
+    static TokenizedToken defaultTokenization(const TSNode &node, const std::string &src);
+};
+
+/// Class that stores split strategies
+class Split
+{
+  public:
+    /// A function that converts a sequence of tokens to a string representing path from root to some token
+    /// @param pathContext - a vector of tokens to process
+    /// @param vocab - a vocabulary that stores mapping between terminal names and their hashes
+    /// @return a string representation of tokens in format idid...id_hash (e.g. 123423678_276187 implies a sequence of
+    /// nodes "123", "423", "678" where "678" is a terminal with hash 276187)
+    static std::string toBranch(const std::vector<TokenizedToken> &pathContext,
+                                std::unordered_map<size_t, std::string> &vocab);
+};
+
+/// Class that creates a TSTree from a given file and parses the input options to obtain the requested nodes'
+/// representation
+class Tree
+{
+    /// A callable for tree traversal
+    std::function<std::vector<std::vector<TSNode>>(const TSNode &)> &traversal;
+    /// A callable for nodes' tokenization
+    std::function<TokenizedToken(const TSNode &, const std::string &)> &tokenizer;
+    /// A callable to split sequences of nodes
+    std::function<std::string(const std::vector<TokenizedToken> &, std::unordered_map<size_t, std::string> &)> &split;
+
+    /// TreeSitter parser
+    TSParser *parser;
+    /// TreeSitter tree
+    TSTree *tree;
+    /// File's context
+    std::string src;
+    /// The root of a tree
+    TSNode root;
+
+    /// Mapping between options and language callables
+    std::unordered_map<std::string, std::function<const TSLanguage *(void)>> languages = {
+        {"c", std::bind(tree_sitter_c)}, {"cpp", std::bind(tree_sitter_cpp)}};
+
+    /// Mapping between options and traversal callables
+    std::unordered_map<std::string, std::function<std::vector<std::vector<TSNode>>(const TSNode &)>> traversalPolicy = {
+        {"root_terminal", std::bind(&Traversal::root2terminal, std::placeholders::_1)},
+        {"terminal_terminal", std::bind(&Traversal::terminal2terminal, std::placeholders::_1)}};
+
+    /// Mapping between options and tokenization callables
+    std::unordered_map<std::string, std::function<TokenizedToken(const TSNode &, const std::string &)>>
+        tokenizationRules = {
+            {"masked_identifiers",
+             std::bind(&Tokenizer::defaultTokenization, std::placeholders::_1, std::placeholders::_2)},
+    };
+
+    /// Mapping between options and split callables
+    std::unordered_map<std::string, std::function<std::string(const std::vector<TokenizedToken> &,
+                                                              std::unordered_map<size_t, std::string> &)>>
+        splitStrategy = {
+            {"ids_hash", std::bind(&Split::toBranch, std::placeholders::_1, std::placeholders::_2)},
+    };
+
+  public:
+    /// A vocabulary storing mapping between hashes and the corresponding terminals' names
+    std::unordered_map<size_t, std::string> vocab;
+
+    /// Constructor to build a TSTree and set the requested callables
+    /// @param fileName - path to input file
+    /// @param lang - @param fileName's language
+    /// @param traversalParam - traversal option (the way we traverse tree and collect nodes)
+    /// @param tokenizationParam - tokenization option (the way we encode nodes)
+    /// @param splitParam - split option (the way we construct a path-context from sequence of nodes)
+    Tree(const std::string &fileName, const std::string &lang, const std::string &traversalParam,
+         const std::string &tokenizationParam, const std::string &splitParam);
+
+    /// A function that applies the chosen callables to process an inner file in the right way
+    /// @return a vector of strings representing one line in the resulting file
+    std::vector<std::string> process();
+
+    ~Tree();
+};
+
 class TreeSitter
 {
-  private:
-    // these expressions' IDs should be referred to the corresponding operations
-    std::map<std::string, uint32_t> expressions = {{"unary_expression", 0}, {"binary_expression", 1}};
-    /*
-        Token options
-        0: Similar to JavaExtractor <token1, path, token2>
-            - tokens - names,types and constants - are named (value)
-            - strings are unnamed, "string" (type)
-            - paths are hashed (std::hash) (ID)
-        1: Possible improvement <token1, path, token2>
-            - tokens - names - are unnamed (type)
-            - types and constants are named (value)
-            - strings are std::hash(value)
-            - paths are hashed with 3-formatted indices of internal nodes (ID)
-        */
-
-    std::map<std::string, std::vector<int>> tokenOptions = {
-        // getValue(), getType()
-        {"identifier", {0, 1}}, // name (e.g. x, myFunc)
-        // getValue(), getValue()
-        {"primitive_type", {0, 0}}, // type (e.g. int, double)
-        // getValue(), getValue()
-        {"number_literal", {0, 0}}, // constant (e.g. 0, 1.43)
-        // getType(), std::hash(getValue()) = 2
-        {"string_content", {1, 2}} // string (e.g. "Hello", " ")
-    };
 
     TSParser *parser;
     TSTree *tree;
@@ -127,18 +214,7 @@ class TreeSitter
     // get AST
     void getGraph(const char *file);
 
-    // format token depending on its type and option
-    std::string getToken(const TreeSitterNode &token);
-
-    // format path depending on the option
-    std::string getPath(const std::string &s);
-
-    // get the representation for the extractor
-    std::string getFormat(const TreeSitterNode &token1, const std::string &pathUp, const std::string &pathDown,
-                          const TreeSitterNode &token2);
-
-    // replace binary/unary ops with corresponding operation
-    uint16_t maybeChangeID(const TreeSitterNode &node);
+    std::string getContext() const;
 
     // free memory here
     ~TreeSitter();
@@ -147,6 +223,6 @@ class TreeSitter
 // Function that gets all possible root-to-leaf paths
 // >> root - start node of each r2l path
 // >> reverseArr - true if we want 2 get l2r path
-std::vector<std::vector<TreeSitterNode>> root2leafPaths(TreeSitterNode root, bool reverseArr);
+std::vector<std::vector<TreeSitterNode>> root2leafPaths(TreeSitterNode root, bool reverseArr = false);
 }; // namespace treesitter
 #endif
