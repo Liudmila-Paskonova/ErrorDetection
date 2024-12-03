@@ -10,8 +10,9 @@ marker::Marker::Marker(const std::string &stmt, const std::string &dir,
     setCentralWidget(centralWidget);
 
     // Header (problem statement)
-    QLabel *probStmt = new QLabel(this);
-    probStmt->setText(statement.c_str());
+    probStmt = new QLabel(this);
+    auto stmtUpd = std::format("{} / {}\n{}", curID + 1, subPairs.size(), statement);
+    probStmt->setText(stmtUpd.c_str());
     probStmt->setAlignment(Qt::AlignCenter);
     probStmt->setStyleSheet("font-size: 20px; font-weight: bold; color: black; padding: 10px; background-color: white");
 
@@ -58,7 +59,7 @@ marker::Marker::Marker(const std::string &stmt, const std::string &dir,
     OKsnippet->setText(buffertemp.str().c_str());
 
     // Scroller for the stmt
-    SCroll = new QScrollArea(this);
+    QScrollArea *SCroll = new QScrollArea(this);
     SCroll->setWidgetResizable(true);
     SCroll->setWidget(probStmt);
     SCroll->setMaximumSize(QSize(10000, 200));
@@ -94,6 +95,9 @@ marker::Marker::nextPair()
 
     // Increment the index
     curID = (curID + 1) % subPairs.size();
+
+    auto stmtUpd = std::format("{} / {}\n{}", curID + 1, subPairs.size(), statement);
+    probStmt->setText(stmtUpd.c_str());
 
     // At the last iteration change name of the button
     if (curID == subPairs.size() - 1) {
@@ -131,7 +135,7 @@ marker::Marker::nextPair()
 marker::Marker::~Marker()
 {
 
-    delete SCroll;
+    delete probStmt;
     delete footerButton;
     delete OKsnippet;
 

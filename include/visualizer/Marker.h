@@ -33,7 +33,7 @@ class Marker : public QMainWindow
     void nextPair();
     void processLeftPart(const std::string &text);
 
-    QScrollArea *SCroll;
+    QLabel *probStmt;
     QScrollArea *PTsnippet;
     QWidget *buttonContainer;
     QVBoxLayout *buttonLayout;

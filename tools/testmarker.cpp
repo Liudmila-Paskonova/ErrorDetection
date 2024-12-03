@@ -25,8 +25,8 @@ struct Parameters : public argparser::Arguments {
     Parameters()
     {
         using namespace argparser;
-        addParam<"-prob", "--problem_name">(prob, CostrainedArgument<std::string>("p02743", {"p02743"}));
-        addParam<"-npairs", "--pairs_count">(npairs, NaturalRangeArgument<>(1, {1, 4000}));
+        addParam<"-prob", "--problem_name">(prob, ConstrainedArgument<std::string>("p02743", {"p02743"}));
+        addParam<"-npairs", "--pairs_count">(npairs, NaturalRangeArgument<>(1000, {1, 4000}));
         addParam<"-dir", "--raw_dataset">(
             dir, DirectoryArgument<std::string>("/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/C++"));
         addParam<"-stmts", "--problem_statements">(
@@ -34,7 +34,7 @@ struct Parameters : public argparser::Arguments {
         addParam<"-metadata", "--path_to_metadata">(
             metadata, FileArgument<std::string>(
                           "/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/C++/metadata_cpp.db"));
-        addParam<"-lang", "--dataset_language">(lang, CostrainedArgument<std::string>("cpp", {"c", "cpp"}));
+        addParam<"-lang", "--dataset_language">(lang, ConstrainedArgument<std::string>("cpp", {"c", "cpp"}));
         addParam<"-outdir", "--output_directory">(
             outdir,
             DirectoryArgument<std::string>("/home/liudmila/ssd-drive/Coursework_dataset/Project_CodeNet/labels2"));
