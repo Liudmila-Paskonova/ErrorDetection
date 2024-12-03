@@ -15,6 +15,7 @@
 #include <chrono>
 #include <mutex>
 #include <unordered_map>
+#include <format>
 
 namespace extractor
 {
@@ -35,18 +36,24 @@ extract(const std::filesystem::path &file, const Parameters &params)
         line += " " + v;
     }
     line += "\n";
-    auto id = std::this_thread::get_id();
-    std::filesystem outFile = params.outdir / "temp" / "tokens" / (std::to_string(id) + ".txt");
+
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    auto id = ss.str();
+
+    std::filesystem::path outFile = params.outdir;
+    outFile = outFile / "temp" / "tokens" / (id + ".txt");
     std::ofstream tempFile(outFile);
-    outFile << line;
-    outFile.close();
-    std::filesystem outVocab = params.outdir / "temp" / "vocabs" / (std::to_string(id) + ".txt");
+    tempFile << line;
+    tempFile.close();
+
+    std::filesystem::path outVocab = params.outdir;
+    outVocab = outVocab / "temp" / "vocabs" / (id + ".txt");
     std::ofstream tempVocab(outVocab);
-    outVocab << line;
     for (auto &[hash, tok] : t.vocab) {
-        outVocab << hash << " " << tok << "\n";
+        tempVocab << hash << " " << tok << "\n";
     }
-    outVocab.close();
+    tempVocab.close();
 }
 
 class Extractor
@@ -87,7 +94,7 @@ class Extractor
         // unite all files with path-contexts into one
         std::ofstream outFile(tokensDir / (params.traversal + "|" + params.token + "|" + params.split + "_tokens.txt"));
         for (auto const &dir_entry : std::filesystem::directory_iterator{tokensDir / "temp" / "tokens"}) {
-            std::ofstream f(dir_entry.path());
+            std::ifstream f(dir_entry.path());
             outFile << f.rdbuf();
             f.close();
         }
@@ -97,7 +104,7 @@ class Extractor
         // create a vocabulary
         std::unordered_map<size_t, std::string> globalVocab;
         for (auto const &dir_entry : std::filesystem::directory_iterator{tokensDir / "temp" / "vocabs"}) {
-            std::ofstream f(dir_entry.path());
+            std::ifstream f(dir_entry.path());
             std::string line;
             while (std::getline(f, line)) {
                 std::istringstream lineStream(line);
