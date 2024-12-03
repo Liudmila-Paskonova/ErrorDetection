@@ -132,6 +132,29 @@ class Split
                                 std::unordered_map<size_t, std::string> &vocab);
 };
 
+/// Mapping between options and language callables
+static std::unordered_map<std::string, std::function<const TSLanguage *(void)>> languages = {
+    {"c", std::bind(tree_sitter_c)}, {"cpp", std::bind(tree_sitter_cpp)}};
+
+/// Mapping between options and traversal callables
+static std::unordered_map<std::string, std::function<std::vector<std::vector<TSNode>>(const TSNode &)>>
+    traversalPolicy = {{"root_terminal", std::bind(&Traversal::root2terminal, std::placeholders::_1)},
+                       {"terminal_terminal", std::bind(&Traversal::terminal2terminal, std::placeholders::_1)}};
+
+/// Mapping between options and tokenization callables
+static std::unordered_map<std::string, std::function<TokenizedToken(const TSNode &, const std::string &)>>
+    tokenizationRules = {
+        {"masked_identifiers",
+         std::bind(&Tokenizer::defaultTokenization, std::placeholders::_1, std::placeholders::_2)},
+};
+
+/// Mapping between options and split callables
+static std::unordered_map<std::string, std::function<std::string(const std::vector<TokenizedToken> &,
+                                                                 std::unordered_map<size_t, std::string> &)>>
+    splitStrategy = {
+        {"ids_hash", std::bind(&Split::toBranch, std::placeholders::_1, std::placeholders::_2)},
+};
+
 /// Class that creates a TSTree from a given file and parses the input options to obtain the requested nodes'
 /// representation
 class Tree
@@ -151,29 +174,6 @@ class Tree
     std::string src;
     /// The root of a tree
     TSNode root;
-
-    /// Mapping between options and language callables
-    std::unordered_map<std::string, std::function<const TSLanguage *(void)>> languages = {
-        {"c", std::bind(tree_sitter_c)}, {"cpp", std::bind(tree_sitter_cpp)}};
-
-    /// Mapping between options and traversal callables
-    std::unordered_map<std::string, std::function<std::vector<std::vector<TSNode>>(const TSNode &)>> traversalPolicy = {
-        {"root_terminal", std::bind(&Traversal::root2terminal, std::placeholders::_1)},
-        {"terminal_terminal", std::bind(&Traversal::terminal2terminal, std::placeholders::_1)}};
-
-    /// Mapping between options and tokenization callables
-    std::unordered_map<std::string, std::function<TokenizedToken(const TSNode &, const std::string &)>>
-        tokenizationRules = {
-            {"masked_identifiers",
-             std::bind(&Tokenizer::defaultTokenization, std::placeholders::_1, std::placeholders::_2)},
-    };
-
-    /// Mapping between options and split callables
-    std::unordered_map<std::string, std::function<std::string(const std::vector<TokenizedToken> &,
-                                                              std::unordered_map<size_t, std::string> &)>>
-        splitStrategy = {
-            {"ids_hash", std::bind(&Split::toBranch, std::placeholders::_1, std::placeholders::_2)},
-    };
 
   public:
     /// A vocabulary storing mapping between hashes and the corresponding terminals' names
