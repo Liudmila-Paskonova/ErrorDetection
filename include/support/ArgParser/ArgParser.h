@@ -25,7 +25,7 @@ struct Argument {
     /// @param param - a command line argument to convert
     virtual void setValue(std::any &value, const std::string &param) = 0;
 
-    /// @brief A function that tries to convert a given command line argument  @param param into a known type @tparam T.
+    /// A function that tries to convert a given command line argument  @param param into a known type @tparam T.
     /// @tparam T - a type
     /// @param value - a reference (represented as std::any) to @tparam T object.
     /// @param param - a command line argument to convert
@@ -59,7 +59,7 @@ class DirectoryArgument : public Argument
     void
     checkValue(const T &value)
     {
-        if (!std::filesystem::is_directory(value)) {
+        if (!std::filesystem::is_directory(value) || !std::filesystem::exists(value)) {
             throw std::format("{} is not a directory!", value);
         }
     }
@@ -89,7 +89,7 @@ class FileArgument : public Argument
     void
     checkValue(const T &value)
     {
-        if (!std::filesystem::is_regular_file(value)) {
+        if (!std::filesystem::is_regular_file(value) || !std::filesystem::exists(value)) {
             throw std::format("{} is not a file!", value);
         }
     }
@@ -142,14 +142,14 @@ class NaturalRangeArgument : public Argument
 /// @tparam T - a concrete type (only arithmetic types and std::string are allowed)
 template <typename T = bool>
     requires(std::is_arithmetic<T>() == true || std::same_as<T, std::string>)
-class CostrainedArgument : public Argument
+class ConstrainedArgument : public Argument
 {
     std::set<T> container;
 
   public:
     T defaultValue;
 
-    CostrainedArgument(T defVal = false, const std::set<T> &cont = {false, true})
+    ConstrainedArgument(T defVal = false, const std::set<T> &cont = {false, true})
         : defaultValue(defVal), container(cont)
     {
         checkValue(defVal);
@@ -181,6 +181,20 @@ class CostrainedArgument : public Argument
     {
         auto concreteValue = getValue<T>(value, param);
         checkValue(concreteValue);
+    }
+};
+
+template <typename T> class UnconstrainedArgument : public Argument
+{
+  public:
+    T defaultValue;
+
+    UnconstrainedArgument(const T &defVal) : defaultValue(defVal) {}
+
+    void
+    setValue(std::any &value, const std::string &param) override
+    {
+        auto concreteValue = getValue<T>(value, param);
     }
 };
 
@@ -258,7 +272,8 @@ class Arguments
     template <ShortArg sharg, LongArg larg, typename T, template <typename> class Object>
         requires((std::is_arithmetic<T>() == true || std::same_as<T, std::string>) &&
                  (std::same_as<Object<T>, FileArgument<T>> || std::same_as<Object<T>, DirectoryArgument<T>> ||
-                  std::same_as<Object<T>, NaturalRangeArgument<T>> || std::same_as<Object<T>, CostrainedArgument<T>>) )
+                  std::same_as<Object<T>, NaturalRangeArgument<T>> || std::same_as<Object<T>, ConstrainedArgument<T>> ||
+                  std::same_as<Object<T>, UnconstrainedArgument<T>>) )
     void
     addParam(T &value, const Object<T> &obj)
     {
@@ -274,7 +289,7 @@ class Arguments
     void parse(int argc, char *argv[]);
 };
 
-template <bool> CostrainedArgument() -> CostrainedArgument<bool>;
+template <bool> ConstrainedArgument() -> ConstrainedArgument<bool>;
 
 }; // namespace argparser
 
