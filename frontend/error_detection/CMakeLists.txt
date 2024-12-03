@@ -1,1 +1,0 @@
-target_sources(errors PRIVATE main.cpp highlight.h)
