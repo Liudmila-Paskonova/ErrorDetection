@@ -27,7 +27,7 @@ std::mutex mut;
 // >> db - path to metadata.db
 template <typename Parameters>
 void
-extract(const std::filesystem::path &file, const Parameters &params)
+extract(const std::filesystem::path &file, const Parameters &params, const std::filesystem::path &tempDir)
 {
     treesitter::Tree t(file, params.lang, params.traversal, params.token, params.split);
     auto res = t.process();
@@ -41,17 +41,16 @@ extract(const std::filesystem::path &file, const Parameters &params)
     ss << std::this_thread::get_id();
     auto id = ss.str();
 
-    std::filesystem::path outFile = params.outdir;
-    outFile = outFile / "temp" / "tokens" / (id + ".txt");
-    std::ofstream tempFile(outFile);
+    auto outFile = tempDir / "tokens" / (id + ".txt");
+
+    std::ofstream tempFile(outFile, std::ios::app);
     tempFile << line;
     tempFile.close();
 
-    std::filesystem::path outVocab = params.outdir;
-    outVocab = outVocab / "temp" / "vocabs" / (id + ".txt");
-    std::ofstream tempVocab(outVocab);
+    auto outVocab = tempDir / "vocabs" / (id + ".txt");
+    std::ofstream tempVocab(outVocab, std::ios::app);
     for (auto &[hash, tok] : t.vocab) {
-        tempVocab << hash << " " << tok << "\n";
+        tempVocab << "___[BOS]___ " << hash << " " << tok << "\n";
     }
     tempVocab.close();
 }
@@ -75,6 +74,7 @@ class Extractor
         auto dirName = dirPath.filename().stem();
         std::filesystem::path tokensDir = outDirPath / dirName;
         std::filesystem::create_directory(tokensDir);
+        std::filesystem::create_directory(tokensDir / "temp");
         std::filesystem::create_directory(tokensDir / "temp" / "tokens");
         std::filesystem::create_directory(tokensDir / "temp" / "vocabs");
 
@@ -83,11 +83,14 @@ class Extractor
             filePaths.push_back(dir_entry.path());
         }
 
+        std::filesystem::path tempDir = tokensDir / "temp";
+
         // run threadpool
         {
             threadpool::ThreadPool pool(params.numThreads);
             for (auto &file : filePaths) {
-                auto res = pool.addTask(extractor::extract<Parameters>, std::ref(file), std::ref(params));
+                auto res =
+                    pool.addTask(extractor::extract<Parameters>, std::ref(file), std::ref(params), std::ref(tempDir));
             }
         }
 
@@ -99,32 +102,47 @@ class Extractor
             f.close();
         }
         outFile.close();
-        std::filesystem::remove_all(tokensDir / "temp" / "tokens");
 
         // create a vocabulary
-        std::unordered_map<size_t, std::string> globalVocab;
+        std::unordered_map<std::string, std::string> globalVocab;
         for (auto const &dir_entry : std::filesystem::directory_iterator{tokensDir / "temp" / "vocabs"}) {
             std::ifstream f(dir_entry.path());
+
             std::string line;
-            while (std::getline(f, line)) {
-                std::istringstream lineStream(line);
-                size_t number;
-                std::string value;
-                lineStream >> number;
-                std::getline(lineStream >> std::ws, value);
-                globalVocab[number] = value;
+            std::string number;
+            std::string content;
+            while (std::getline(f, line, '\n')) {
+                std::stringstream lineStream(line);
+                std::string bos;
+                std::getline(lineStream, bos, ' ');
+                if (bos != "___[BOS]___") {
+                    content += "\n" + line;
+                } else {
+                    // begin of string
+                    if (!number.empty()) {
+                        globalVocab[number] = content;
+                    }
+                    std::getline(lineStream, number, ' ');
+                    std::getline(lineStream, content);
+                }
+            }
+
+            if (!number.empty()) {
+                globalVocab[number] = content;
             }
 
             f.close();
         }
-        std::filesystem::remove_all(tokensDir / "temp" / "vocabs");
-
         std::ofstream outVocab(tokensDir /
                                (params.traversal + "|" + params.token + "|" + params.split + "_mapping.txt"));
+        outVocab << globalVocab.size() << "\n";
         for (auto &[hash, tok] : globalVocab) {
-            outVocab << hash << " " << tok << "\n";
+            outVocab << "___[BOS]___ " << hash << " " << tok << "\n";
         }
+
         outVocab.close();
+
+        std::filesystem::remove_all(tokensDir / "temp");
     }
 };
 } // namespace extractor

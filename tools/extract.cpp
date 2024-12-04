@@ -53,7 +53,6 @@ struct Parameters : public argparser::Arguments {
     std::string token;
     std::string split;
     std::string outdir;
-    std::string hashNameVocab;
 
     Parameters()
     {
@@ -74,7 +73,7 @@ struct Parameters : public argparser::Arguments {
         addParam<"-traversal", "--traversal_policy">(
             traversal, ConstrainedArgument<std::string>("root_terminal", {"root_terminal", "terminal_terminal"}));
         addParam<"-token", "--token_rules">(
-            traversal, ConstrainedArgument<std::string>("masked_identifiers", {"masked_identifiers"}));
+            token, ConstrainedArgument<std::string>("masked_identifiers", {"masked_identifiers"}));
         addParam<"-split", "--split_strategy">(split, ConstrainedArgument<std::string>("ids_hash", {"ids_hash"}));
         addParam<"-outdir", "--output_directory">(outdir, DirectoryArgument<std::string>("/home/liudmila"));
     }

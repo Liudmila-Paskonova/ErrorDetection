@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <fstream>
 #include <sstream>
+#include <optional>
 
 treesitter::TreeSitterNode &
 treesitter::TreeSitterNode::operator=(const TreeSitterNode &other)
@@ -271,41 +272,55 @@ treesitter::Traversal::terminal2terminal(const TSNode &root)
     return vec;
 }
 
-treesitter::TokenizedToken
-treesitter::Tokenizer::defaultTokenization(const TSNode &node, const std::string &src)
+std::optional<std::vector<treesitter::TokenizedToken>>
+treesitter::Tokenizer::defaultTokenization(const std::vector<TSNode> &nodes, const std::string &src,
+                                           std::unordered_map<size_t, std::string> &vocab)
 {
-    std::string id = std::format("{:0>3}", ts_node_grammar_symbol(node));
-    std::string name;
-
-    if (!ts_node_is_null(node) && ts_node_child_count(node) == 0) {
-        // terminal
-        if (ts_node_is_named(node) && std::string_view(ts_node_grammar_type(node)) != "identifier") {
-            // named terminal => exists in the grammar
-            name = src.substr(ts_node_start_byte(node), ts_node_end_byte(node) - ts_node_start_byte(node));
-
+    // remove comments
+    if (ts_node_is_extra(nodes.back())) {
+        return std::nullopt;
+    }
+    // remove too short branches (e.g. #define ..., #include ...)
+    if (nodes.size() < 5) {
+        return std::nullopt;
+    }
+    std::vector<TokenizedToken> res;
+    for (auto &node : nodes) {
+        std::string id = std::format("{:0>3}", ts_node_grammar_symbol(node));
+        size_t name;
+        if (!ts_node_is_null(node) && ts_node_child_count(node) == 0) {
+            // terminal
+            std::string tempName;
+            if (ts_node_is_named(node) && std::string_view(ts_node_grammar_type(node)) != "identifier") {
+                // named terminal => exists in the grammar
+                size_t bytes = ts_node_end_byte(node) - ts_node_start_byte(node);
+                tempName = src.substr(ts_node_start_byte(node), bytes);
+            } else {
+                // identifiers + unnamed
+                tempName = ts_node_grammar_type(node);
+            }
+            // add a terminal to vocabulary
+            name = std::hash<std::string>{}(tempName);
+            vocab[name] = "[" + tempName + "]";
         } else {
-            // identifiers + unnamed
-            name = ts_node_grammar_type(node);
+            // non-terminal
+            name = 0;
         }
-    } else {
-        // non-terminal
-        name = {};
+        res.push_back(TokenizedToken(id, name));
     }
 
-    return TokenizedToken(id, name);
+    return res;
 }
 
 std::string
-treesitter::Split::toBranch(const std::vector<TokenizedToken> &pathContext,
-                            std::unordered_map<size_t, std::string> &vocab)
+treesitter::Split::toBranch(const std::vector<TokenizedToken> &pathContext)
 {
     std::string res;
     for (const auto &token : pathContext) {
         res += token.id;
     }
-    size_t hashed = std::hash<std::string>{}(pathContext.back().name);
+    auto hashed = pathContext.back().name;
     res += "_" + std::to_string(hashed);
-    vocab[hashed] = pathContext.back().name;
 
     return res;
 }
@@ -323,7 +338,9 @@ treesitter::Tree::Tree(const std::string &fileName, const std::string &lang, con
     src = ss.str();
     parser = ts_parser_new();
 
-    ts_parser_set_language(parser, languages[lang]());
+    // ts_parser_set_language(parser, languages[lang]());
+    const TSLanguage *lang_parser = tree_sitter_cpp();
+    ts_parser_set_language(parser, lang_parser);
     tree = ts_parser_parse_string(parser, NULL, src.c_str(), strlen(src.c_str()));
     root = ts_tree_root_node(tree);
 }
@@ -331,18 +348,20 @@ treesitter::Tree::Tree(const std::string &fileName, const std::string &lang, con
 std::vector<std::string>
 treesitter::Tree::process()
 {
+    // traverse the tree
     auto pathVectors = traversal(root);
     std::vector<std::vector<TokenizedToken>> tokens;
     for (const auto &path : pathVectors) {
-        std::vector<TokenizedToken> temp;
-        for (auto &node : path) {
-            temp.push_back(tokenizer(node, src));
+        // get a tokenized path-context
+        auto temp = tokenizer(path, src, vocab);
+        if (temp.has_value()) {
+            tokens.push_back(temp.value());
         }
-        tokens.push_back(temp);
     }
     std::vector<std::string> res;
     for (auto &token : tokens) {
-        res.push_back(split(token, vocab));
+        // get path-context's final representation
+        res.push_back(split(token));
     }
     return res;
 }
