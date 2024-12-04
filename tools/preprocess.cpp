@@ -1,7 +1,7 @@
 /*#########################################################################################################//
 Tool for dataset preprocessing
 
-Supposing the following structure of a raw datase,
+Supposing the following structure of a raw dataset,
   |- dataset_directory
   |----|- prob1_name
   |    |---- sub1_name
@@ -49,8 +49,8 @@ struct Parameters : public argparser::Arguments {
     {
         using namespace argparser;
 
-        addParam<"-nprobs", "--number_of_problems">(numProbs, NaturalRangeArgument<>(1, {0, 4000}));
-        addParam<"-nsubs", "--number_of_submissions">(numSubs, NaturalRangeArgument<>(1, {0, 4000}));
+        addParam<"-nprobs", "--number_of_problems">(numProbs, NaturalRangeArgument<>(UINT32_MAX, {0, UINT32_MAX}));
+        addParam<"-nsubs", "--number_of_submissions">(numSubs, NaturalRangeArgument<>(UINT32_MAX, {0, UINT32_MAX}));
         addParam<"-split", "--split_train_val">(split, NaturalRangeArgument<>(75, {0, 100}));
         addParam<"-datadir", "--dataset_directory">(dataDir, DirectoryArgument<std::string>("/home"));
         addParam<"-outdir", "--train_split_directory">(outDir, DirectoryArgument<std::string>("/home"));
