@@ -59,7 +59,7 @@ struct Parameters : public argparser::Arguments {
         using namespace argparser;
         // addParam<"-maxlen", "--max_path_length">(maxLen, NaturalRangeArgument<>(1, {1, 20}));
         // addParam<"-maxwidth", "--max_path_width">(maxWidth, NaturalRangeArgument<>(1, {1, 20}));
-        addParam<"-threads", "--num_threads">(numThreads, NaturalRangeArgument<>(1, {1, 16}));
+        addParam<"-threads", "--num_threads">(numThreads, NaturalRangeArgument<>(1, {1, 64}));
         // addParam<"-batch", "--batch_size">(batch, NaturalRangeArgument<>(1, {1, 20}));
         // addParam<"-vectors", "--export_code_vectors">(exportVectors, CostrainedArgument());
         addParam<"-lang", "--dataset_language">(lang, ConstrainedArgument<std::string>("cpp", {"c", "cpp"}));
