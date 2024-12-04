@@ -2,7 +2,6 @@
 #define EXTRACTOR_EXTRACTOR_H
 
 #include <support/TreeSitter/TreeSitter.h>
-#include <support/Database/Metadata.h>
 #include <support/ThreadPool/ThreadPool.h>
 #include <iostream>
 #include <fstream>
