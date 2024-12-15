@@ -15,7 +15,7 @@ The examples of such similarities are:
 - all the terminals are treated by value except of "identifiers" and hashed
 - **7998** unique hashed values of terminals
 - **tokenization**: path from root to token in a parse tree, hereinafter *path-context*
-- **preprocessing**: path-contexts with path < 5 were removed to avoid large amount of useless preproc. stmts, e.g $\#define$ s
+- **preprocessing**: path-contexts with path < 5 were removed to avoid large amount of useless preproc. stmts, e.g $define$
 
 **Underlying hypothesis**: path-contexts with similar prefixes (e.g. sequence of nodes starting from the root) have close embeddings.
 
@@ -54,86 +54,100 @@ To visualize and analyze the obtained embeddings, 2 dimensionality reduction tec
 ### Intrinsic structure
 
 1. embeddings form *rope-like clusters*, they are mostly one point wide:
+
 ![ropes](imgs/word2vec/CodeNet20_10000__W2V_e10_n15_w10__TSNE_perp30_rope.png)
+
 2. some of them are almost rings:
+   
 ![ring](imgs/word2vec/CodeNet20_10000__W2V_e10_n15_w10__TSNE_perp30_ring.png)
+
 3. just for fun :)
+
 ![man](imgs/word2vec/CodeNet20_10000__W2V_e10_n15_w10__TSNE_perp30_manikin.png)
+
 4. each rope is some branch: every *point* in a rope is a root2terminal path, and *sequence* of points follow the *order of tokens* in a program
 
 For example,
-![example1](imgs/word2vec/W2V_example1.png)
-is
-![example1](imgs/word2vec/W2V_TSNE_example1.png)
-and
-![example2](imgs/word2vec/W2V_example2.png)
-is
-![example2](imgs/word2vec/W2V_TSNE_example2.png)
+    ![example1](imgs/word2vec/W2V_example1.png)
+    is
+    ![example1](imgs/word2vec/W2V_TSNE_example1.png)
+    and
+    ![example2](imgs/word2vec/W2V_example2.png)
+    is
+    ![example2](imgs/word2vec/W2V_TSNE_example2.png)
 
 ### Global structure
 
 1. branches ("ropes") with similar prefixes tend to group together into large clusters:
 
-    - *TSNE*
-![example1](imgs/word2vec/CodeNet20_10000__W2V_e10_n15_w10__TSNE_perp30_all.png)
+- *TSNE*     
 
-    - Same for *UMAP*:
-![example1](imgs/word2vec/umap_all.png)
+    ![example1](imgs/word2vec/CodeNet20_10000__W2V_e10_n15_w10__TSNE_perp30_all.png)
 
-    In these pictures embeddings are assigned colors based on prefixes of the corresponding path-contexts, that is common first nodes in parse trees.
+- Same for *UMAP*:
+      
+    ![example1](imgs/word2vec/umap_all.png)
 
-    For example:
-    - *yellow* clusters represent *structs*
-    - *orange* clusters are *classes*
-    - *green*, *blue* and their variations clusters are *functions*
-    - *dark blue* clusters show preproc. stmts
-    - *red* are constructor / destructor definitions
-    - *vinous* clusters are $typedef$
-    - *light red* clusters represent namespaces
+In these pictures embeddings are assigned colors based on prefixes of the corresponding path-contexts, that is common first nodes in parse trees.
+
+For example:
+- *yellow* clusters represent *structs*
+- *orange* clusters are *classes*
+- *green*, *blue* and their variations clusters are *functions*
+- *dark blue* clusters show preproc. stmts
+- *red* are constructor / destructor definitions
+- *vinous* clusters are $typedef$
+- *light red* clusters represent namespaces
 
 Open this [html](imgs/word2vec/UMAP3d.html) to watch it in 3D!
+
 2. Within one big cluster there can be subclasters that represent different types of statements, e.g.:
-    - *for* loop
-    - *while* loop
-    - *binary* stmt
+- *for* loop
+- *while* loop
+- *binary* stmt
+
 ![example1](imgs/word2vec/UMAP_1cluster.png)
 
 ### Hyperparameter evaluation
 
 1. *Negative sampling* param almost doesn't affect the clusters
+
 2. *epochs*
     - 5 is too small, clusters are less accurate
     - 10 is OK in terms of training time and quality
+  
 3. *Window size*:
     - with less window sizes clusters are more fuzzy:
         - window = 5
+          
+            ![cl](imgs/word2vec/window_5_example1.png)
 
-        *An area*:
-        ![cl](imgs/word2vec/window_5_example1.png)
-
-        *The same area*:
-        ![cl](imgs/word2vec/window_10_example1.png)
+        - window = 10
+          
+            ![cl](imgs/word2vec/window_10_example1.png)
 
     - after some threshold the quality of cluster partitioning stops improving:
         - window = 15
 
-        *An area*:
-        ![cl](imgs/word2vec/window_15_example1.png)
+            ![cl](imgs/word2vec/window_15_example1.png)
 
         - window = 20
 
-        *The same area*:
-        ![cl](imgs/word2vec/window20_example1.png)
+            ![cl](imgs/word2vec/window20_example1.png)
 
 The ring example depending on window size:
 
 - window = 5
+  
     ![cl](imgs/word2vec/window5_ring.png)
 - window = 10
+  
     ![cl](imgs/word2vec/window10_ring.png)
 - window = 15
+  
     ![cl](imgs/word2vec/window15_ring.png)
 - window = 20
+  
     ![cl](imgs/word2vec/window20_ring.png)
 
 ### Clustering
